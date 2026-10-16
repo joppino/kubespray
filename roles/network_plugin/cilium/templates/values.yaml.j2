@@ -37,6 +37,11 @@ loadBalancer:
   dsrDispatch: geneve
 {% endif %}
 
+{% if cilium_kube_proxy_replacement == true  %}
+localRedirectPolicies:
+  enabled: true
+{% endif %}
+
 kubeProxyReplacement: {{ cilium_kube_proxy_replacement | to_json }}
 
 {% if cilium_dns_proxy_enable_transparent_mode is defined %}

@@ -23,7 +23,11 @@ spec:
         {{ nodelocaldns_ds_nodeselector }}
       priorityClassName: system-cluster-critical
       serviceAccountName: nodelocaldns
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+      hostNetwork: false
+{% else %}
       hostNetwork: true
+{% endif %}
       dnsPolicy: Default  # Don't use cluster DNS.
       tolerations:
       - effect: NoSchedule
@@ -39,15 +43,32 @@ spec:
           requests:
             cpu: {{ nodelocaldns_cpu_requests }}
             memory: {{ nodelocaldns_memory_requests }}
-        args: [ "-localip", "{{ nodelocaldns_ip }}", "-conf", "/etc/coredns/Corefile", "-upstreamsvc", "coredns", "-skipteardown" ]
-        ports:
+        args: 
+        - -localip
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        - {{ nodelocaldns_ip }},{{ forwardTarget }} 
+{% else %}
+        - {{ nodelocaldns_ip }}
+{% endif %}
+        - -conf
+        - /etc/coredns/Corefile
+        - -upstreamsvc
+        - coredns
+        - -skipteardown
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        - -setupinterface=false
+        - -setupiptables=false
+{% endif %}
+           ports:
         - containerPort: {{ nodelocaldns_secondary_prometheus_port }}
           name: metrics
           protocol: TCP
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement == false %}
         securityContext:
           capabilities:
             add:
             - NET_ADMIN
+{% endif %}
 {% if nodelocaldns_bind_metrics_host_ip %}
         env:
           - name: MY_HOST_IP
@@ -76,8 +97,10 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /etc/coredns
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement != true %}
         - name: xtables-lock
           mountPath: /run/xtables.lock
+{% endif %}
         lifecycle:
           preStop:
             exec:
@@ -92,14 +115,16 @@ spec:
             items:
             - key: Corefile-second
               path: Corefile
-{% if dns_etchosts | default(None) %}
+{% if dns_etchosts | default(None) and (kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement != true) %}
             - key: hosts
               path: hosts
 {% endif %}
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement != true %}
         - name: xtables-lock
           hostPath:
             path: /run/xtables.lock
             type: FileOrCreate
+{% endif %}
       # Implement a time skew between the main nodelocaldns and this secondary.
       # Since the two nodelocaldns instances share the :53 port, we want to keep
       # at least one running at any time even if the manifests are replaced simultaneously

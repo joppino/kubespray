@@ -20,7 +20,11 @@ data:
 {% endfor %}
 {% endif %}
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ block['nameservers'] | join(' ') }}
         prometheus {% if nodelocaldns_bind_metrics_host_ip %}{$MY_HOST_IP}{% endif %}:{{ nodelocaldns_prometheus_port }}
         log
@@ -40,12 +44,20 @@ data:
         }
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ forwardTarget }} {
             force_tcp
         }
         prometheus {% if nodelocaldns_bind_metrics_host_ip %}{$MY_HOST_IP}{% endif %}:{{ nodelocaldns_prometheus_port }}
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        health :{{ nodelocaldns_health_port }}
+{% else %}
         health {{ nodelocaldns_ip | ansible.utils.ipwrap }}:{{ nodelocaldns_health_port }}
+{% endif %}
 {% if dns_etchosts | default(None) %}
         hosts /etc/coredns/hosts {
           fallthrough
@@ -57,7 +69,11 @@ data:
         cache 30
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ forwardTarget }} {
             force_tcp
         }
@@ -68,7 +84,11 @@ data:
         cache 30
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ forwardTarget }} {
             force_tcp
         }
@@ -82,7 +102,11 @@ data:
         cache 30
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ upstreamForwardTarget }}{% if dns_upstream_forward_extra_opts is defined %} {
 {% for optname, optvalue in dns_upstream_forward_extra_opts.items() %}
           {{ (optname ~ ' ' ~ optvalue) | trim }}
@@ -107,7 +131,11 @@ data:
         cache {{ block['cache'] | default(30) }}
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ block['nameservers'] | join(' ') }}
         prometheus {% if nodelocaldns_bind_metrics_host_ip %}{$MY_HOST_IP}{% endif %}:{{ nodelocaldns_secondary_prometheus_port }}
         log
@@ -127,12 +155,21 @@ data:
         }
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ forwardTarget }} {
             force_tcp
         }
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        prometheus :{{ nodelocaldns_secondary_prometheus_port }}
+        health :{{ nodelocaldns_health_port }}
+{% else %}
         prometheus {% if nodelocaldns_bind_metrics_host_ip %}{$MY_HOST_IP}{% endif %}:{{ nodelocaldns_secondary_prometheus_port }}
         health {{ nodelocaldns_ip | ansible.utils.ipwrap }}:{{ nodelocaldns_second_health_port }}
+{% endif %}
 {% if dns_etchosts | default(None) %}
         hosts /etc/coredns/hosts {
           fallthrough
@@ -144,22 +181,38 @@ data:
         cache 30
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ forwardTarget }} {
             force_tcp
         }
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        prometheus :{{ nodelocaldns_secondary_prometheus_port }}
+{% else %}
         prometheus {% if nodelocaldns_bind_metrics_host_ip %}{$MY_HOST_IP}{% endif %}:{{ nodelocaldns_secondary_prometheus_port }}
+{% endif %}
     }
     ip6.arpa:53 {
         errors
         cache 30
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}        
         forward . {{ forwardTarget }} {
             force_tcp
         }
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        prometheus :{{ nodelocaldns_secondary_prometheus_port }}
+{% else %}
         prometheus {% if nodelocaldns_bind_metrics_host_ip %}{$MY_HOST_IP}{% endif %}:{{ nodelocaldns_secondary_prometheus_port }}
+{% endif %}
     }
     .:53 {
 {% if nodelocaldns_additional_configs is defined %}
@@ -169,7 +222,11 @@ data:
         cache 30
         reload
         loop
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        bind 0.0.0.0
+{% else %}        
         bind {{ nodelocaldns_ip }}
+{% endif %}
         forward . {{ upstreamForwardTarget }}{% if dns_upstream_forward_extra_opts is defined %} {
 {% for optname, optvalue in dns_upstream_forward_extra_opts.items() %}
           {{ (optname ~ ' ' ~ optvalue) | trim }}
@@ -177,8 +234,11 @@ data:
              workaround for: https://github.com/kubernetes/kubernetes/issues/36222 #}
 {% endfor %}
         }{% endif %}
-
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        prometheus :{{ nodelocaldns_secondary_prometheus_port }}
+{% else %}
         prometheus {% if nodelocaldns_bind_metrics_host_ip %}{$MY_HOST_IP}{% endif %}:{{ nodelocaldns_secondary_prometheus_port }}
+{% endif %}
 {% if dns_etchosts | default(None) %}
         hosts /etc/coredns/hosts {
           fallthrough

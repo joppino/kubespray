@@ -23,7 +23,11 @@ spec:
         {{ nodelocaldns_ds_nodeselector }}
       priorityClassName: system-node-critical
       serviceAccountName: nodelocaldns
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+      hostNetwork: false
+{% else %}
       hostNetwork: true
+{% endif %}
       dnsPolicy: Default  # Don't use cluster DNS.
       tolerations:
       - effect: NoSchedule
@@ -41,12 +45,20 @@ spec:
             memory: {{ nodelocaldns_memory_requests }}
         args:
         - -localip
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        - {{ nodelocaldns_ip }},{{ forwardTarget }} 
+{% else %}
         - {{ nodelocaldns_ip }}
+{% endif %}
         - -conf
         - /etc/coredns/Corefile
         - -upstreamsvc
         - coredns
-{% if enable_nodelocaldns_secondary %}
+{% if kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true %}
+        - -setupinterface=false
+        - -setupiptables=false
+{% endif %}
+{% if enable_nodelocaldns_secondary or (kube_network_plugin == 'cilium' and cilium_kube_proxy_replacement == true) %}
         - -skipteardown
 {% endif %}
         ports:
@@ -59,10 +71,12 @@ spec:
         - containerPort: {{ nodelocaldns_prometheus_port }}
           name: metrics
           protocol: TCP
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement == false %}
         securityContext:
           capabilities:
             add:
             - NET_ADMIN
+{% endif %}
 {% if nodelocaldns_bind_metrics_host_ip %}
         env:
           - name: MY_HOST_IP
@@ -72,7 +86,9 @@ spec:
 {% endif %}
         livenessProbe:
           httpGet:
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement == false %}
             host: {{ nodelocaldns_ip }}
+{% endif %}
             path: /health
             port: {{ nodelocaldns_health_port }}
             scheme: HTTP
@@ -81,7 +97,9 @@ spec:
           failureThreshold: 10
         readinessProbe:
           httpGet:
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement == false %}
             host: {{ nodelocaldns_ip }}
+{% endif %}
             path: /health
             port: {{ nodelocaldns_health_port }}
             scheme: HTTP
@@ -91,8 +109,10 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /etc/coredns
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement != true %}
         - name: xtables-lock
           mountPath: /run/xtables.lock
+{% endif %}
       volumes:
         - name: config-volume
           configMap:
@@ -100,14 +120,16 @@ spec:
             items:
             - key: Corefile
               path: Corefile
-{% if dns_etchosts | default(None) %}
+{% if dns_etchosts | default(None) and (kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement != true) %}
             - key: hosts
               path: hosts
 {% endif %}
+{% if kube_network_plugin != 'cilium' or cilium_kube_proxy_replacement != true %}
         - name: xtables-lock
           hostPath:
             path: /run/xtables.lock
             type: FileOrCreate
+{% endif %}
       # Minimize downtime during a rolling upgrade or deletion; tell Kubernetes to do a "force
       # deletion": https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods.
       terminationGracePeriodSeconds: 0
